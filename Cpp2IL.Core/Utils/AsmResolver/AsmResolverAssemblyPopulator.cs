@@ -5,6 +5,7 @@ using AsmResolver;
 using AsmResolver.DotNet;
 using AsmResolver.DotNet.Signatures;
 using AsmResolver.PE.DotNet.Metadata.Tables;
+using Cpp2IL.Core.Logging;
 using Cpp2IL.Core.Model.Contexts;
 using Cpp2IL.Core.Model.CustomAttributes;
 using LibCpp2IL.BinaryStructures;
@@ -272,7 +273,18 @@ public static class AsmResolverAssemblyPopulator
                     CopyCustomAttributes(field, field.GetExtraData<FieldDefinition>("AsmResolverField")!.CustomAttributes);
 
                 foreach (var property in type.Properties)
-                    CopyCustomAttributes(property, property.GetExtraData<PropertyDefinition>("AsmResolverProperty")!.CustomAttributes);
+                {
+                    var asmResolverProperty = property.GetExtraData<PropertyDefinition>("AsmResolverProperty");
+                    if (asmResolverProperty == null)
+                    {
+                        Logger.VerboseNewline(
+                            $"Skipping custom attribute copy for property '{property.Name}' in type '{type.Name}' " +
+                            "because no AsmResolverProperty extra data is associated.",
+                            "AsmResolverPopulator");
+                        continue;
+                    }
+                    CopyCustomAttributes(property, asmResolverProperty.CustomAttributes);
+                }
 
                 foreach (var eventDefinition in type.Events)
                     CopyCustomAttributes(eventDefinition, eventDefinition.GetExtraData<EventDefinition>("AsmResolverEvent")!.CustomAttributes);
@@ -437,6 +449,18 @@ public static class AsmResolverAssemblyPopulator
     {
         foreach (var propertyCtx in typeContext.Properties)
         {
+            // Defensive guard: skip properties that lack a valid Definition or type information.
+            // Such properties may arise from compiler-generated or invalid metadata entries
+            // and cannot be meaningfully imported into the managed assembly.
+            if (propertyCtx.Definition?.RawPropertyType == null)
+            {
+                Logger.VerboseNewline(
+                    $"Skipping property '{propertyCtx.Name}' in type '{ilTypeDefinition.FullName}' " +
+                    "due to missing Definition or RawPropertyType.",
+                    "AsmResolverPopulator");
+                continue;
+            }
+
             var propertyTypeSig = propertyCtx.ToTypeSignature(importer.TargetModule);
             var propertySignature = propertyCtx.IsStatic
                 ? PropertySignature.CreateStatic(propertyTypeSig)

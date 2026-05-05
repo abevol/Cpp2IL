@@ -41,7 +41,11 @@ public class Il2CppPropertyDefinition : ReadableClass, IIl2CppTokenProvider
 
     public Il2CppTypeReflectionData? PropertyType => LibCpp2IlMain.TheMetadata == null ? null : Getter == null ? Setter!.Parameters![0].Type : Getter!.ReturnType;
 
-    public Il2CppType? RawPropertyType => LibCpp2IlMain.TheMetadata == null ? null : Getter == null ? Setter!.Parameters![0].RawType : Getter!.RawReturnType;
+    public Il2CppType? RawPropertyType => LibCpp2IlMain.TheMetadata == null
+        ? null
+        : Getter == null
+            ? Setter?.Parameters?.FirstOrDefault()?.RawType
+            : Getter.RawReturnType;
 
     public bool IsStatic => Getter == null ? Setter!.IsStatic : Getter!.IsStatic;
     public uint Token => token;
